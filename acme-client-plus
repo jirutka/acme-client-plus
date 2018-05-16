@@ -59,6 +59,16 @@ acme_client() {
 		"$domain" $altnames
 }
 
+genrsa() {
+	local file="$1"
+	local size="$2"
+
+	# grep is used to suppress openssl's chatty output
+	( umask 0377 && openssl genrsa -out "$file" "$size" 2>&1 ) \
+		| grep -v '^\([.+]\|e is \d\)' >&2 \
+		&& test -f "$file"
+}
+
 ls_domains() {
 	find "$keys_dir" -type d -mindepth 1 -maxdepth 1 -exec basename {} \;
 }
@@ -74,7 +84,7 @@ issue_cert() {
 
 	# acme-client has hard-coded key size 4096, so generate the key ourself.
 	if ! [ -e "$keyfile" ] && [ "$rsa_key_size" -ne 4096 ]; then
-		( umask 0377 && openssl genrsa -out "$keyfile" "$rsa_key_size" ) \
+		genrsa "$keyfile" "$rsa_key_size" \
 			|| die "failed to generate RSA key $keyfile using openssl!"
 	fi
 
