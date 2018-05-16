@@ -47,13 +47,19 @@ help() {
 acme_client() {
 	local domain="$1"; shift
 	local altnames="$*"
+	local keyfile="$keys_dir/$domain/privkey.pem"
+	local opts=''
 
-	acme-client -mnN \
+	[ -e "$keyfile" ] || opts='-n'
+	[ -e "$account_key" ] || opts="$opts -N"
+	[ -z "$agreement_url" ] || opts="$opts -a $agreement_url"
+
+	acme-client -m \
 		-C "$challenge_dir" \
 		-c "$certs_dir/$domain" \
-		-k "$keys_dir/$domain/privkey.pem" \
+		-k "$keyfile" \
 		-f "$account_key" \
-		${agreement_url:+"-a $agreement_url"} \
+		$opts \
 		$acme_client_opts \
 		$ACME_OPTS \
 		"$domain" $altnames
