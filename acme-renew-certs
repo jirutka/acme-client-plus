@@ -1,0 +1,20 @@
+#!/bin/sh
+# This script is supposed to be executed by cron.
+set -eu
+
+# Option pipefail is not specified by POSIX and not supported e.g. by dash.
+# However, running this script without pipefail would be unsafe.
+if ( set -o pipefail 2>/dev/null ); then
+	set -o pipefail
+else
+	echo 'Your shell does not support option pipefail!' >&2
+	exit 1
+fi
+
+LOGFILE='/var/log/acme-renew.log'
+DATE_FORMAT='%Y-%m-%d %H:%M:%S'
+
+# An awk program to add prefix to all logged lines.
+AWK_LOG_PREFIX="{ print strftime(\"$DATE_FORMAT:\"), \$0; fflush(); }"
+
+{ acme-client-plus renew  2>&1; } | awk "$AWK_LOG_PREFIX" | tee -a "$LOGFILE"

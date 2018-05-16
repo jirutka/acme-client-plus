@@ -3,6 +3,7 @@ SCRIPT_NAME := acme-client-plus
 prefix      := /usr/local
 bindir      := $(prefix)/bin
 sysconfdir  := /etc
+periodicdir := $(sysconfdir)/periodic/weekly
 
 INSTALL     := install
 SED         := sed
@@ -22,6 +23,10 @@ install:
 	$(INSTALL) -m 750 $(SCRIPT_NAME) $(DESTDIR)$(bindir)/$(SCRIPT_NAME)
 	$(INSTALL) -d $(DESTDIR)$(sysconfdir)
 	$(INSTALL) -m 644 $(SCRIPT_NAME).conf $(DESTDIR)$(sysconfdir)/$(SCRIPT_NAME).conf
+	$(INSTALL) -d $(DESTDIR)$(periodicdir)
+	$(INSTALL) -m 750 acme-renew-certs $(DESTDIR)$(periodicdir)/acme-renew-certs
+	$(INSTALL) -d $(DESTDIR)$(sysconfdir)/logrotate.d
+	$(INSTALL) -m 644 $(SCRIPT_NAME).logrotate $(DESTDIR)$(sysconfdir)/logrotate.d/$(SCRIPT_NAME)
 
 #: Update version in the script and README.adoc to $VERSION.
 bump-version:
