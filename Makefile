@@ -2,6 +2,7 @@ SCRIPT_NAME := acme-client-plus
 
 prefix      := /usr/local
 bindir      := $(prefix)/bin
+sysconfdir  := /etc
 
 INSTALL     := install
 SED         := sed
@@ -18,7 +19,9 @@ all: help
 #: Install into $DESTDIR.
 install:
 	$(INSTALL) -d $(DESTDIR)$(bindir)
-	$(INSTALL) -m 755 $(SCRIPT_NAME) $(DESTDIR)$(bindir)/$(SCRIPT_NAME)
+	$(INSTALL) -m 750 $(SCRIPT_NAME) $(DESTDIR)$(bindir)/$(SCRIPT_NAME)
+	$(INSTALL) -d $(DESTDIR)$(sysconfdir)
+	$(INSTALL) -m 644 $(SCRIPT_NAME).conf $(DESTDIR)$(sysconfdir)/$(SCRIPT_NAME).conf
 
 #: Update version in the script and README.adoc to $VERSION.
 bump-version:

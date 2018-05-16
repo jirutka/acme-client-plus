@@ -1,1 +1,167 @@
 #!/bin/sh
+# vim: set ts=4:
+#---help---
+# Usage:
+#   acme-client-plus [-h] [-V]
+#   acme-client-plus issue [options] DOMAIN [ALTNAME...]
+#   acme-client-plus renew [options] [DOMAIN...]
+#
+# Issue a new certificate or renew existing ones using acme-client(1).
+# If "renew" is used with no domain, renew certificates for all domains
+# found in $keys_dir.
+#
+# Arguments:
+#   DOMAIN          A fully qualified domain name (CN).
+#   ALTNAME...      Alternative names (SAN) for the domain name.
+#
+# Options:
+#   -c ACME_CONFIG  Path of the configuration file (defaults is
+#                     /etc/acme-client-plus.conf).
+#   -F              Force updating the certificate even if it's too soon.
+#   -v              Be verbose.
+#   -V              Print script version and exit.
+#   -h              Show this message and exit.
+#
+# Please reports bugs at <https://github.com/jirutka/acme-client-plus/issues>.
+#---help---
+set -eu
+
+readonly PROGNAME='acme-client-plus'
+readonly VERSION='0.0.0'
+
+
+die() {
+	printf "$PROGNAME: %s\n" "$1" >&2
+	exit ${2:-1}
+}
+
+einfo() {
+	printf "$PROGNAME: %s\n" "$@" >&2
+}
+
+help() {
+	sed -n '/^#---help---/,/^#---help---/p' "$0" | sed 's/^# \?//; 1d;$d;'
+}
+
+
+acme_client() {
+	local domain="$1"; shift
+	local altnames="$*"
+
+	acme-client -mnN \
+		-C "$challenge_dir" \
+		-c "$certs_dir/$domain" \
+		-k "$keys_dir/$domain/privkey.pem" \
+		-f "$account_key" \
+		${agreement_url:+"-a $agreement_url"} \
+		$acme_client_opts \
+		$ACME_OPTS \
+		"$domain" $altnames
+}
+
+ls_domains() {
+	find "$keys_dir" -type d -mindepth 1 -maxdepth 1 -exec basename {} \;
+}
+
+issue_cert() {
+	local domain="$1"; shift
+	local altnames="$*"
+	local certdir="$certs_dir/$domain"
+	local keyfile="$keys_dir/$domain/privkey.pem"
+
+	mkdir -p "$certdir"
+	mkdir -p "${keyfile%/*}"
+
+	# acme-client has hard-coded key size 4096, so generate the key ourself.
+	if ! [ -e "$keyfile" ] && [ "$rsa_key_size" -ne 4096 ]; then
+		( umask 0377 && openssl genrsa -out "$keyfile" "$rsa_key_size" ) \
+			|| die "failed to generate RSA key $keyfile using openssl!"
+	fi
+
+	if [ -n "$altnames" ]; then
+		printf '%s\n' $altnames > "$certdir"/alt-names
+	fi
+
+	acme_client "$domain" $altnames
+}
+
+renew_cert() {
+	local domain="$1"
+	local altnames=$(cat "$certs_dir/$domain/alt-names" 2>/dev/null ||:)
+
+	acme_client "$domain" $altnames
+}
+
+renew_certs() {
+	local status=0
+	local renewed=''
+	local domain rc
+
+	for domain in ${@:-$(ls_domains)}; do
+		rc=0; renew_cert "$domain" || rc=$?
+		case "$rc" in
+			0) renewed="$renewed $domain";;
+			2) ;;  # cert is up-to-date
+			*) status=101;;
+		esac
+	done
+
+	if [ "$renewed" ]; then
+		einfo "renewed certificates for$renewed"
+		after_renew $renewed || status=102
+	else
+		einfo 'no certificate has been renewed'
+	fi
+
+	return $status
+}
+
+
+: ${ACME_CONFIG:="/etc/acme-client-plus.conf"}
+: ${ACME_OPTS:=}
+
+case "${1:-}" in
+	issue | renew) readonly ACTION="$1"; shift;;
+	-*) ;;
+	'') help >&2; exit 1;;
+	*) die "unknown action: $1";;
+esac
+
+while getopts ':c:FhVv' OPT; do
+	case "$OPT" in
+		c) ACME_CONFIG="$OPTARG";;
+		F) ACME_OPTS="$ACME_OPTS -F";;
+		v) ACME_OPTS="$ACME_OPTS -v";;
+		h) help; exit 0;;
+		V) echo "$PROGNAME $VERSION"; exit 0;;
+		\?) die "unrecognized option -$OPTARG!" 100;;
+	esac
+done
+shift $((OPTIND - 1))
+
+if [ "$ACTION" = issue ] && [ $# -eq 0 ]; then
+	die 'missing argument DOMAIN!' 100
+fi
+
+[ -r "$ACME_CONFIG" ] \
+	|| die "file '$ACME_CONFIG' does not exist or not readable!"
+
+# Defaults
+account_key='/etc/ssl/acme/account-key.pem'
+certs_dir='/etc/ssl/acme'
+keys_dir='/etc/ssl/acme'
+challenge_dir='/var/www/acme'
+rsa_key_size=4096
+agreement_url=
+acme_client_opts=''
+after_renew() { :; }
+
+. "$ACME_CONFIG" \
+	|| die "failed to source config $ACME_CONFIG!"
+
+mkdir -p "$challenge_dir"
+
+case "$ACTION" in
+	issue) issue_cert "$@";;
+	renew) renew_certs "$@";;
+esac
