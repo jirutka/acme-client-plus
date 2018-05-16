@@ -1,20 +1,95 @@
 = acme-client-plus
 :gh-name: jirutka/acme-client-plus
 
-TODO
+This project provides a ready-to-go script for periodic renewal of TLS certificates using the BSD’s https://kristaps.bsd.lv/acme-client[acme-client].
 
 
 == Requirements
 
-TODO
+* https://kristaps.bsd.lv/acme-client[acme-client]
+* http://pubs.opengroup.org/onlinepubs/9699919799/utilities/V3_chap02.html[POSIX-sh] compatible shell (e.g. Busybox ash, dash, ZSH, bash, …); script `acme-renew-certs` needs a shell with support for `set -e pipefail`
+* common userland with `awk`, `find`, `sed` (e.g. from Busybox, GNU coreutils, …)
+* `openssl` command (if you want to generate RSA keys with different size than 4096 bits)
 
 
-== Usage
+== Installation
 
-TODO
+[source, sh, subs="+attributes"]
+git clone https://github.com/{gh-name}.git
+cd {gh-name}
+make install
+
+
+== Examples
+
+.*acme-client-plus.conf:*
+[source, sh]
+----
+# Size of RSA keys for domains (in bits).
+rsa_key_size="3096"
+
+# Additional options to pass into acme-client.
+# -O - Request OCSP stapling for the given domains.
+acme_client_opts="-O"
+
+# This function is executed after any certificate(s) have been renewed;
+# use it to reload affected services.
+# $@: domain names
+after_renew() {
+    # Note: This example is for the OpenRC init system.
+    /etc/init.d/nginx --ifstarted --quiet reload
+}
+----
+
+.*Issue a certificate for domain _foo.example.org_ with alternative name _bar.example.org_:*
+[source, sh]
+acme-client-plus issue foo.example.org bar.example.org
+
+.*Renew all certificates that are close to their expiration:*
+[source, sh]
+acme-client-plus renew
+
+.*Renew certificate for domain _foo.example.org_ even if it's too soon:*
+[source, sh]
+acme-client-plus renew -F foo.example.org
+
+
+== Files
+
+.*Default directory structure*:
+----
+/
+|-- etc
+|   |-- logrotate.d
+|   |   `-- acme-client-plus (750)
+|   |-- periodic/weekly
+|   |   `-- acme-renew-certs (750)
+|   |-- ssl/acme (755) [certs_dir, keys_dir]
+|   |   |-- <domain> (755)
+|   |   |   |-- cert.pem (444)
+|   |   |   |-- chain.pem (444)
+|   |   |   |-- fullchain.pem (444)
+|   |   |   `-- privkey.pem (400)
+|   |   :-- ...
+|   |   `-- account-key.pem (400) [account_key]
+|   `-- acme-client-plus.conf (644)
+|-- usr/bin
+|   `-- acme-client-plus (750)
+`-- var
+    |-- log
+    |   `-- acme-renew.log (644)
+    `-- www/acme (755) [challenge_dir]
+        :-- ...
+        `-- xyz (444)
+----
 
 
 == License
 
 This project is licensed under http://opensource.org/licenses/ISC/[ISC License].
 For the full text of the license, see the link:LICENSE[LICENSE] file.
+
+
+== See Also
+
+* https://kristaps.bsd.lv/acme-client/acme-client.1.html[acme-client(1)]
