@@ -50,8 +50,8 @@ acme_client() {
 	local keyfile="$keys_dir/$domain/privkey.pem"
 	local opts=''
 
-	[ -e "$keyfile" ] || opts='-n'
-	[ -e "$account_key" ] || opts="$opts -N"
+	[ -e "$keyfile" ] || opts='-N'
+	[ -e "$account_key" ] || opts="$opts -n"
 	[ -z "$agreement_url" ] || opts="$opts -a $agreement_url"
 
 	acme-client -m \
