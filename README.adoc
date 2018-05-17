@@ -26,7 +26,7 @@ make install
 [source, sh]
 ----
 # Size of RSA keys for domains (in bits).
-rsa_key_size="3096"
+rsa_key_size="3072"
 
 # Additional options to pass into acme-client.
 # -O - Request OCSP stapling for the given domains.
